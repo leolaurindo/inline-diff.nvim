@@ -62,6 +62,18 @@ COMMANDS                                                  *inline-diff-commands*
     Toggle inline diff for the current buffer. Without `ref`, disables if
     currently enabled. With `ref`, always enables (or switches ref).
 
+:InlineDiffWorkspace [ref]                       *:InlineDiffWorkspace*
+    Toggle workspace-wide inline diff. Normal file buffers are automatically
+    enabled against `ref` (default: HEAD). Use `staged` for index -> working
+    tree, which shows unstaged changes. Supplying a different ref while
+    workspace mode is active switches the workspace to that ref.
+
+:InlineDiffWorkspaceEnable [ref]                 *:InlineDiffWorkspaceEnable*
+    Enable workspace-wide inline diff against `ref` (default: HEAD).
+
+:InlineDiffWorkspaceDisable                       *:InlineDiffWorkspaceDisable*
+    Disable workspace mode and clear buffers enabled by workspace mode.
+
 :InlineDiffNext                                  *:InlineDiffNext*
     Jump to the next change hunk. Wraps to the first hunk when past the last.
 
@@ -91,6 +103,16 @@ require("inline-diff").disable([bufnr])         *inline-diff.disable()*
 require("inline-diff").toggle([bufnr], [ref])   *inline-diff.toggle()*
     Toggle inline diff. Without `ref`, disables if currently enabled.
     With `ref`, always enables (or switches ref).
+
+require("inline-diff").workspace_enable([ref])  *inline-diff.workspace_enable()*
+    Enable workspace mode and automatically enable normal file buffers against
+    `ref` (default: "HEAD").
+
+require("inline-diff").workspace_disable()      *inline-diff.workspace_disable()*
+    Disable workspace mode and clear buffers enabled by workspace mode.
+
+require("inline-diff").workspace_toggle([ref])  *inline-diff.workspace_toggle()*
+    Toggle workspace mode, or switch its ref when a different ref is given.
 
 require("inline-diff").next_hunk([bufnr])        *inline-diff.next_hunk()*
     Jump the cursor to the next change hunk (wrapping to the first). Returns

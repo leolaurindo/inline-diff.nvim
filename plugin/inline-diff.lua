@@ -19,3 +19,17 @@ end, { desc = "Jump to next inline-diff change" })
 vim.api.nvim_create_user_command("InlineDiffPrev", function()
   require("inline-diff").prev_hunk()
 end, { desc = "Jump to previous inline-diff change" })
+
+vim.api.nvim_create_user_command("InlineDiffWorkspace", function(args)
+  local ref = args.args ~= "" and args.args or nil
+  require("inline-diff").workspace_toggle(ref)
+end, { nargs = "?" })
+
+vim.api.nvim_create_user_command("InlineDiffWorkspaceEnable", function(args)
+  local ref = args.args ~= "" and args.args or nil
+  require("inline-diff").workspace_enable(ref)
+end, { nargs = "?" })
+
+vim.api.nvim_create_user_command("InlineDiffWorkspaceDisable", function()
+  require("inline-diff").workspace_disable()
+end, {})

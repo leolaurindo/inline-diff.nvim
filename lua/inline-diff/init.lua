@@ -41,6 +41,10 @@ end
 M.config = {
   debounce_ms = 150,
   word_del_strikethrough = true,
+  workspace = {
+    enabled = false,
+    ref = "HEAD",
+  },
 }
 
 function M.setup(opts)
@@ -48,6 +52,57 @@ function M.setup(opts)
   highlight.word_del_strikethrough = M.config.word_del_strikethrough
   highlight.define()
   highlight.setup_autocmd()
+  local group = vim.api.nvim_create_augroup("InlineDiffWorkspace", { clear = true })
+  vim.api.nvim_create_autocmd({ "BufEnter", "BufReadPost" }, {
+    group = group,
+    callback = function(event)
+      if M.config.workspace.enabled then
+        M._workspace_enable_buffer(event.buf)
+      end
+    end,
+  })
+end
+
+local function workspace_buffer(bufnr)
+  return vim.api.nvim_buf_is_valid(bufnr)
+    and vim.bo[bufnr].buftype == ""
+    and vim.api.nvim_buf_get_name(bufnr) ~= ""
+end
+
+function M._workspace_enable_buffer(bufnr)
+  if workspace_buffer(bufnr) then
+    M.enable(bufnr, M.config.workspace.ref, true)
+  end
+end
+
+function M.workspace_enable(ref)
+  M.config.workspace.enabled = true
+  M.config.workspace.ref = ref or M.config.workspace.ref or "HEAD"
+  for bufnr in pairs(state._bufs) do
+    M._workspace_enable_buffer(bufnr)
+  end
+  M._workspace_enable_buffer(vim.api.nvim_get_current_buf())
+end
+
+function M.workspace_disable()
+  M.config.workspace.enabled = false
+  local buffers = {}
+  for bufnr, s in pairs(state._bufs) do
+    if s.workspace then
+      buffers[#buffers + 1] = bufnr
+    end
+  end
+  for _, bufnr in ipairs(buffers) do
+    M.disable(bufnr)
+  end
+end
+
+function M.workspace_toggle(ref)
+  if M.config.workspace.enabled and (not ref or ref == M.config.workspace.ref) then
+    M.workspace_disable()
+  else
+    M.workspace_enable(ref)
+  end
 end
 
 function M._refresh(bufnr)
@@ -208,10 +263,11 @@ function M._schedule_refresh(bufnr)
   )
 end
 
-function M.enable(bufnr, ref)
+function M.enable(bufnr, ref, workspace)
   bufnr = bufnr or vim.api.nvim_get_current_buf()
   ref = ref or "HEAD"
   local s = state.get(bufnr)
+  s.workspace = workspace == true
 
   if s.enabled then
     if s.ref == ref then
@@ -293,7 +349,9 @@ function M.disable(bufnr)
   if not s or not s.enabled then
     return
   end
-  render.clear(bufnr, s.ns)
+  if vim.api.nvim_buf_is_valid(bufnr) then
+    render.clear(bufnr, s.ns)
+  end
   state.remove(bufnr)
 end
 

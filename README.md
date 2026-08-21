@@ -78,6 +78,17 @@ require("inline-diff").setup()
 vim.keymap.set("n", "<leader>gd", "<cmd>InlineDiff<cr>", { desc = "Toggle inline diff" })
 ```
 
+Workspace mode enables the diff automatically for normal file buffers:
+
+```vim
+:InlineDiffWorkspace staged
+:InlineDiffWorkspace HEAD
+```
+
+The `staged` ref means index -> working tree, so it shows unstaged changes.
+Workspace mode can be disabled with `:InlineDiffWorkspace` or explicitly with
+`:InlineDiffWorkspaceDisable`.
+
 ---
 
 For the full reference — commands, Lua API, highlight groups, and configuration — see `:help inline-diff`.

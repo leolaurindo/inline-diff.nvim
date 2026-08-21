@@ -101,6 +101,26 @@ describe("enable / disable / toggle", function()
   end)
 end)
 
+describe("workspace mode", function()
+  after_each(function()
+    M.workspace_disable()
+    for bufnr in pairs(state._bufs) do
+      state._bufs[bufnr] = nil
+    end
+  end)
+
+  it("tracks the selected ref and marks workspace buffers", function()
+    local bufnr = vim.api.nvim_create_buf(false, false)
+    vim.api.nvim_buf_set_name(bufnr, vim.fn.tempname() .. ".lua")
+    M.workspace_enable("staged")
+    M._workspace_enable_buffer(bufnr)
+    assert.is_true(M.config.workspace.enabled)
+    assert.equals("staged", M.config.workspace.ref)
+    assert.is_true(state._bufs[bufnr].workspace)
+    vim.api.nvim_buf_delete(bufnr, { force = true })
+  end)
+end)
+
 describe("_goto_hunk", function()
   local bufnr
 
