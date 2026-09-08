@@ -1,65 +1,12 @@
+local source = require("inline-diff.source")
 local M = {}
 
-M._root_cache = {}
+-- Keep the old cache field available for callers that used the internal API.
+M._root_cache = source._root_cache
 
+-- Kept as a compatibility wrapper for callers that used the old internal API.
 function M.get_ref_content(filepath, ref, callback)
-  local dir = vim.fn.fnamemodify(filepath, ":h")
-  local cached_root = M._root_cache[dir]
-
-  local function fetch_content(root)
-    local relpath = filepath:sub(#root + 2):gsub("\\", "/") -- skip root + sep; normalize to forward slashes for git
-
-    local function deliver(stdout)
-      local lines = vim.split(stdout, "\r?\n")
-      -- git show output ends with a newline, producing a trailing empty string
-      if #lines > 0 and lines[#lines] == "" then
-        table.remove(lines)
-      end
-      callback(lines)
-    end
-
-    local function on_fail(err)
-      callback(nil, "git show failed: " .. (err or ""))
-    end
-
-    local git_ref = ref == "staged" and ":0" or ref
-
-    vim.system({ "git", "show", git_ref .. ":" .. relpath }, { text = true, cwd = root }, function(obj)
-      if obj.code == 0 then
-        vim.schedule(function() deliver(obj.stdout) end)
-        return
-      end
-      if ref ~= "staged" then
-        vim.schedule(function() on_fail(obj.stderr) end)
-        return
-      end
-      -- Nothing staged; fall back to HEAD
-      vim.system({ "git", "show", "HEAD:" .. relpath }, { text = true, cwd = root }, function(obj2)
-        vim.schedule(function()
-          if obj2.code ~= 0 then
-            on_fail(obj2.stderr)
-            return
-          end
-          deliver(obj2.stdout)
-        end)
-      end)
-    end)
-  end
-
-  if cached_root then
-    fetch_content(cached_root)
-    return
-  end
-
-  vim.system({ "git", "rev-parse", "--show-toplevel" }, { text = true, cwd = dir }, function(obj)
-    if obj.code ~= 0 then
-      vim.schedule(function() callback(nil, "not a git repo") end)
-      return
-    end
-    local root = vim.trim(obj.stdout)
-    M._root_cache[dir] = root
-    fetch_content(root)
-  end)
+  source.get(filepath, ref, callback)
 end
 
 -- Myers shortest-edit-script algorithm.

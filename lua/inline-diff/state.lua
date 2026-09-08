@@ -14,6 +14,8 @@ function M.get(bufnr)
     workspace = false,
     generation = 0,
     ref = "HEAD",
+    source = { type = "git", ref = "HEAD" },
+    source_key = "git:HEAD",
     has_top_virt = false,
     has_bot_virt = false,
     ref_lines = nil,

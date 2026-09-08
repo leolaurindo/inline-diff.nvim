@@ -1,6 +1,7 @@
 local state = require("inline-diff.state")
 local highlight = require("inline-diff.highlight")
 local diff = require("inline-diff.diff")
+local source = require("inline-diff.source")
 local render = require("inline-diff.render")
 
 local M = {}
@@ -159,7 +160,7 @@ function M._refresh(bufnr)
     return
   end
 
-  diff.get_ref_content(filepath, s.ref, function(old_lines, err)
+  source.get(filepath, s.source, function(old_lines, err)
     if err or not old_lines then
       return
     end
@@ -265,17 +266,20 @@ end
 
 function M.enable(bufnr, ref, workspace)
   bufnr = bufnr or vim.api.nvim_get_current_buf()
-  ref = ref or "HEAD"
+  local source_spec = source.normalize(ref)
+  local source_key = source.key(source_spec)
   local s = state.get(bufnr)
   s.workspace = workspace == true
 
   if s.enabled then
-    if s.ref == ref then
+    if s.source_key == source_key then
       return
     end
-    -- Switching ref: clear highlights and re-diff
+    -- Switching source: clear highlights and re-diff
     render.clear(bufnr, s.ns)
-    s.ref = ref
+    s.ref = source.describe(source_spec)
+    s.source = source_spec
+    s.source_key = source_key
     s.ref_lines = nil
     s.ref_dirty = true
     s.prev_hunks = nil
@@ -284,7 +288,9 @@ function M.enable(bufnr, ref, workspace)
   end
 
   s.enabled = true
-  s.ref = ref
+  s.ref = source.describe(source_spec)
+  s.source = source_spec
+  s.source_key = source_key
 
   -- Ensure highlights are defined
   highlight.word_del_strikethrough = M.config.word_del_strikethrough
