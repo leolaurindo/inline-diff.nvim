@@ -35,7 +35,8 @@ Standard Neovim plugin layout:
 ```
 lua/inline-diff/
   init.lua        # Public API: setup(), enable(), disable(), toggle()
-  diff.lua        # Diff engine: Myers line diff + word diff, git HEAD retrieval
+  diff.lua        # Diff engine: Myers line diff + word diff plus compatibility wrapper
+  source.lua      # Left-hand snapshots: Git refs, index, and empty source
   highlight.lua   # Derive InlineDiff* highlight groups from DiffAdd/DiffDelete
   render.lua      # Apply extmarks (line highlights, virt_lines, inline virt_text)
   state.lua       # Per-buffer state: namespace, augroup, debounce timer, edge-virt flags, ref cache
