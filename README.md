@@ -13,6 +13,7 @@ High performance, live, VSCode-style inline diff for Neovim. Shows the current b
 - 🔴 Live word-level highlighting as you type
 - ⚡ High performance via debouncing and sync / async diffing with Myers algorithm
 - 🎯 Compares against any git ref (default: `HEAD`)
+- 📄 Shows untracked files as additions
 - 🎨 Fully customizable highlight groups
 - 📦 Zero dependencies beyond Neovim 0.11+ and git
 

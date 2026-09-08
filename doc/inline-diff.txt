@@ -52,8 +52,9 @@ COMMANDS                                                  *inline-diff-commands*
     Enable inline diff for the current buffer against `ref` (default: HEAD).
     If already enabled with a different ref, switches to the new ref.
     `ref` can be any ref accepted by `git show` (commit SHA, branch, HEAD~2)
-    or the special value `staged` to diff against the git index. If the file
-    has no staged content, falls back to HEAD automatically.
+    or the special value `staged` to diff against the git index. A path that
+    does not exist in the selected snapshot is treated as an empty file, so
+    untracked files render as additions.
 
 :InlineDiffDisable                              *:InlineDiffDisable*
     Disable inline diff for the current buffer and clear all highlights.
@@ -93,9 +94,16 @@ require("inline-diff").setup({opts})            *inline-diff.setup()*
 
 require("inline-diff").enable([bufnr], [ref])   *inline-diff.enable()*
     Enable inline diff for the given buffer against `ref` (default: "HEAD").
-    If already enabled with a different ref, switches to the new ref.
-    Pass `"staged"` as `ref` to diff against the git index. If the file has
-    no staged content, falls back to HEAD automatically.
+    If already enabled with a different ref, switches to the new source.
+    String refs are accepted for compatibility; `"staged"` reads the git
+    index. Source tables can select a provider explicitly: >lua
+
+      { type = "git", ref = "HEAD~1" }
+      { type = "index" }
+      { type = "empty" }
+    <
+    The `empty` source is useful for treating the current buffer as a new
+    file. A path missing from a Git snapshot is treated as empty.
 
 require("inline-diff").disable([bufnr])         *inline-diff.disable()*
     Disable inline diff and clear all highlights for the given buffer.
