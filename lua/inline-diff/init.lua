@@ -1,6 +1,7 @@
 local state = require("inline-diff.state")
 local highlight = require("inline-diff.highlight")
 local diff = require("inline-diff.diff")
+local source = require("inline-diff.source")
 local render = require("inline-diff.render")
 
 local M = {}
@@ -40,12 +41,69 @@ end
 
 M.config = {
   debounce_ms = 150,
+  word_del_strikethrough = true,
+  workspace = {
+    enabled = false,
+    ref = "HEAD",
+  },
 }
 
 function M.setup(opts)
   M.config = vim.tbl_deep_extend("force", M.config, opts or {})
+  highlight.word_del_strikethrough = M.config.word_del_strikethrough
   highlight.define()
   highlight.setup_autocmd()
+  local group = vim.api.nvim_create_augroup("InlineDiffWorkspace", { clear = true })
+  vim.api.nvim_create_autocmd({ "BufEnter", "BufReadPost" }, {
+    group = group,
+    callback = function(event)
+      if M.config.workspace.enabled then
+        M._workspace_enable_buffer(event.buf)
+      end
+    end,
+  })
+end
+
+local function workspace_buffer(bufnr)
+  return vim.api.nvim_buf_is_valid(bufnr)
+    and vim.bo[bufnr].buftype == ""
+    and vim.api.nvim_buf_get_name(bufnr) ~= ""
+end
+
+function M._workspace_enable_buffer(bufnr)
+  if workspace_buffer(bufnr) then
+    M.enable(bufnr, M.config.workspace.ref, true)
+  end
+end
+
+function M.workspace_enable(ref)
+  M.config.workspace.enabled = true
+  M.config.workspace.ref = ref or M.config.workspace.ref or "HEAD"
+  for bufnr in pairs(state._bufs) do
+    M._workspace_enable_buffer(bufnr)
+  end
+  M._workspace_enable_buffer(vim.api.nvim_get_current_buf())
+end
+
+function M.workspace_disable()
+  M.config.workspace.enabled = false
+  local buffers = {}
+  for bufnr, s in pairs(state._bufs) do
+    if s.workspace then
+      buffers[#buffers + 1] = bufnr
+    end
+  end
+  for _, bufnr in ipairs(buffers) do
+    M.disable(bufnr)
+  end
+end
+
+function M.workspace_toggle(ref)
+  if M.config.workspace.enabled and (not ref or ref == M.config.workspace.ref) then
+    M.workspace_disable()
+  else
+    M.workspace_enable(ref)
+  end
 end
 
 function M._refresh(bufnr)
@@ -102,7 +160,7 @@ function M._refresh(bufnr)
     return
   end
 
-  diff.get_ref_content(filepath, s.ref, function(old_lines, err)
+  source.get(filepath, s.source, function(old_lines, err)
     if err or not old_lines then
       return
     end
@@ -137,7 +195,9 @@ function M._adjust_scroll(bufnr, ns)
         if m[4].virt_lines and m[4].virt_lines_above then
           local count = #m[4].virt_lines
           if view.topfill ~= count then
-            vim.fn.win_execute(winid, "lua vim.fn.winrestview({topfill=" .. count .. "})")
+            vim.api.nvim_win_call(winid, function()
+              vim.fn.winrestview({ topfill = count })
+            end)
           end
           break
         end
@@ -173,7 +233,9 @@ function M._adjust_scroll(bufnr, ns)
               local space = win_height - last_line_row - last_line_height
               local needed = count - space
               if needed > 0 then
-                vim.fn.win_execute(winid, "normal! " .. needed .. "\5") -- N<C-e>
+                vim.api.nvim_win_call(winid, function()
+                  vim.cmd.normal(needed .. "\5") -- N<C-e>
+                end)
               end
             end
           end
@@ -202,18 +264,22 @@ function M._schedule_refresh(bufnr)
   )
 end
 
-function M.enable(bufnr, ref)
+function M.enable(bufnr, ref, workspace)
   bufnr = bufnr or vim.api.nvim_get_current_buf()
-  ref = ref or "HEAD"
+  local source_spec = source.normalize(ref)
+  local source_key = source.key(source_spec)
   local s = state.get(bufnr)
+  s.workspace = workspace == true
 
   if s.enabled then
-    if s.ref == ref then
+    if s.source_key == source_key then
       return
     end
-    -- Switching ref: clear highlights and re-diff
+    -- Switching source: clear highlights and re-diff
     render.clear(bufnr, s.ns)
-    s.ref = ref
+    s.ref = source.describe(source_spec)
+    s.source = source_spec
+    s.source_key = source_key
     s.ref_lines = nil
     s.ref_dirty = true
     s.prev_hunks = nil
@@ -222,9 +288,12 @@ function M.enable(bufnr, ref)
   end
 
   s.enabled = true
-  s.ref = ref
+  s.ref = source.describe(source_spec)
+  s.source = source_spec
+  s.source_key = source_key
 
   -- Ensure highlights are defined
+  highlight.word_del_strikethrough = M.config.word_del_strikethrough
   highlight.define()
 
   -- Initial refresh
@@ -286,7 +355,9 @@ function M.disable(bufnr)
   if not s or not s.enabled then
     return
   end
-  render.clear(bufnr, s.ns)
+  if vim.api.nvim_buf_is_valid(bufnr) then
+    render.clear(bufnr, s.ns)
+  end
   state.remove(bufnr)
 end
 
@@ -299,6 +370,50 @@ function M.toggle(bufnr, ref)
   else
     M.enable(bufnr, ref)
   end
+end
+
+-- Jump to the next (step > 0) or previous (step < 0) change hunk, wrapping
+-- around at either end. Returns the target 1-based line, or nil when there
+-- are no hunks (or the buffer is not enabled).
+function M._goto_hunk(bufnr, step)
+  local s = state._bufs[bufnr]
+  local hunks = s and s.prev_hunks
+  if not s or not s.enabled or not hunks or #hunks == 0 then
+    return nil
+  end
+  local row = vim.api.nvim_win_get_cursor(0)[1]
+  local target
+  if step > 0 then
+    for _, h in ipairs(hunks) do
+      local t = math.max(h.new_start, 1)
+      if t > row then
+        target = t
+        break
+      end
+    end
+    target = target or math.max(hunks[1].new_start, 1)
+  else
+    for i = #hunks, 1, -1 do
+      local t = math.max(hunks[i].new_start, 1)
+      if t < row then
+        target = t
+        break
+      end
+    end
+    target = target or math.max(hunks[#hunks].new_start, 1)
+  end
+  vim.api.nvim_win_set_cursor(0, { target, 0 })
+  return target
+end
+
+function M.next_hunk(bufnr)
+  bufnr = bufnr or vim.api.nvim_get_current_buf()
+  return M._goto_hunk(bufnr, 1)
+end
+
+function M.prev_hunk(bufnr)
+  bufnr = bufnr or vim.api.nvim_get_current_buf()
+  return M._goto_hunk(bufnr, -1)
 end
 
 return M

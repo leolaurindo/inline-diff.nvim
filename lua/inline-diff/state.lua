@@ -11,8 +11,11 @@ function M.get(bufnr)
     augroup = vim.api.nvim_create_augroup("InlineDiff:" .. bufnr, {}),
     timer = nil,
     enabled = false,
+    workspace = false,
     generation = 0,
     ref = "HEAD",
+    source = { type = "git", ref = "HEAD" },
+    source_key = "git:HEAD",
     has_top_virt = false,
     has_bot_virt = false,
     ref_lines = nil,
@@ -32,7 +35,9 @@ function M.remove(bufnr)
     s.timer:stop()
     s.timer:close()
   end
-  vim.api.nvim_buf_clear_namespace(bufnr, s.ns, 0, -1)
+  if vim.api.nvim_buf_is_valid(bufnr) then
+    vim.api.nvim_buf_clear_namespace(bufnr, s.ns, 0, -1)
+  end
   pcall(vim.api.nvim_del_augroup_by_id, s.augroup)
   M._bufs[bufnr] = nil
 end

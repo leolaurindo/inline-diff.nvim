@@ -27,6 +27,7 @@ Call `setup()` once in your config. All arguments are optional: >lua
 
     require("inline-diff").setup({
       debounce_ms = 150,  -- ms to wait after last keystroke
+      word_del_strikethrough = true,  -- strikethrough deleted words in changed lines
     })
 <
 
@@ -38,6 +39,12 @@ Options ~
       Milliseconds to wait after the last keystroke before recomputing the
       diff. Raise this value if you notice CPU usage during fast typing.
 
+  word_del_strikethrough                  *inline-diff-config-word_del_strikethrough*
+      Type: `boolean`, Default: `true`
+      When `true`, words deleted within a changed line are shown with a
+      strikethrough. Set to `false` to render them with the same solid
+      background as fully removed lines.
+
 ==============================================================================
 COMMANDS                                                  *inline-diff-commands*
 
@@ -45,8 +52,9 @@ COMMANDS                                                  *inline-diff-commands*
     Enable inline diff for the current buffer against `ref` (default: HEAD).
     If already enabled with a different ref, switches to the new ref.
     `ref` can be any ref accepted by `git show` (commit SHA, branch, HEAD~2)
-    or the special value `staged` to diff against the git index. If the file
-    has no staged content, falls back to HEAD automatically.
+    or the special value `staged` to diff against the git index. A path that
+    does not exist in the selected snapshot is treated as an empty file, so
+    untracked files render as additions.
 
 :InlineDiffDisable                              *:InlineDiffDisable*
     Disable inline diff for the current buffer and clear all highlights.
@@ -54,6 +62,25 @@ COMMANDS                                                  *inline-diff-commands*
 :InlineDiff [ref]                               *:InlineDiff*
     Toggle inline diff for the current buffer. Without `ref`, disables if
     currently enabled. With `ref`, always enables (or switches ref).
+
+:InlineDiffWorkspace [ref]                       *:InlineDiffWorkspace*
+    Toggle workspace-wide inline diff. Normal file buffers are automatically
+    enabled against `ref` (default: HEAD). Use `staged` for index -> working
+    tree, which shows unstaged changes. Supplying a different ref while
+    workspace mode is active switches the workspace to that ref.
+
+:InlineDiffWorkspaceEnable [ref]                 *:InlineDiffWorkspaceEnable*
+    Enable workspace-wide inline diff against `ref` (default: HEAD).
+
+:InlineDiffWorkspaceDisable                       *:InlineDiffWorkspaceDisable*
+    Disable workspace mode and clear buffers enabled by workspace mode.
+
+:InlineDiffNext                                  *:InlineDiffNext*
+    Jump to the next change hunk. Wraps to the first hunk when past the last.
+
+:InlineDiffPrev                                  *:InlineDiffPrev*
+    Jump to the previous change hunk. Wraps to the last hunk when before the
+    first.
 
 ==============================================================================
 LUA API                                                   *inline-diff-api*
@@ -67,9 +94,16 @@ require("inline-diff").setup({opts})            *inline-diff.setup()*
 
 require("inline-diff").enable([bufnr], [ref])   *inline-diff.enable()*
     Enable inline diff for the given buffer against `ref` (default: "HEAD").
-    If already enabled with a different ref, switches to the new ref.
-    Pass `"staged"` as `ref` to diff against the git index. If the file has
-    no staged content, falls back to HEAD automatically.
+    If already enabled with a different ref, switches to the new source.
+    String refs are accepted for compatibility; `"staged"` reads the git
+    index. Source tables can select a provider explicitly: >lua
+
+      { type = "git", ref = "HEAD~1" }
+      { type = "index" }
+      { type = "empty" }
+    <
+    The `empty` source is useful for treating the current buffer as a new
+    file. A path missing from a Git snapshot is treated as empty.
 
 require("inline-diff").disable([bufnr])         *inline-diff.disable()*
     Disable inline diff and clear all highlights for the given buffer.
@@ -78,12 +112,34 @@ require("inline-diff").toggle([bufnr], [ref])   *inline-diff.toggle()*
     Toggle inline diff. Without `ref`, disables if currently enabled.
     With `ref`, always enables (or switches ref).
 
+require("inline-diff").workspace_enable([ref])  *inline-diff.workspace_enable()*
+    Enable workspace mode and automatically enable normal file buffers against
+    `ref` (default: "HEAD").
+
+require("inline-diff").workspace_disable()      *inline-diff.workspace_disable()*
+    Disable workspace mode and clear buffers enabled by workspace mode.
+
+require("inline-diff").workspace_toggle([ref])  *inline-diff.workspace_toggle()*
+    Toggle workspace mode, or switch its ref when a different ref is given.
+
+require("inline-diff").next_hunk([bufnr])        *inline-diff.next_hunk()*
+    Jump the cursor to the next change hunk (wrapping to the first). Returns
+    the target 1-based line, or `nil` if there are no hunks.
+
+require("inline-diff").prev_hunk([bufnr])        *inline-diff.prev_hunk()*
+    Jump the cursor to the previous change hunk (wrapping to the last).
+    Returns the target 1-based line, or `nil` if there are no hunks.
+
 Example keymaps: >lua
 
     vim.keymap.set("n", "<leader>gd", "<cmd>InlineDiff<cr>",
       { desc = "Toggle inline diff" })
     vim.keymap.set("n", "<leader>gD", "<cmd>InlineDiff HEAD~1<cr>",
       { desc = "Diff against HEAD~1" })
+    vim.keymap.set("n", "]c", "<cmd>InlineDiffNext<cr>",
+      { desc = "Next change" })
+    vim.keymap.set("n", "[c", "<cmd>InlineDiffPrev<cr>",
+      { desc = "Prev change" })
 <
 
 ==============================================================================
@@ -104,7 +160,8 @@ Colors are derived automatically from your colorscheme's `DiffAdd` and
 
   InlineDiffWordDel       *hl-InlineDiffWordDel*
       Background of individual deleted words in virtual lines
-      (brighter than InlineDiffDelete, strikethrough).
+      (brighter than InlineDiffDelete; strikethrough unless
+      `word_del_strikethrough` is `false`).
 
 Override any group after `setup()` or inside a `ColorScheme` autocmd: >lua
 
