@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [3.1.0] - 2026-09-09
+
 This fork continues from upstream `v3.0.0` while preserving the existing
 module and command API.
 
