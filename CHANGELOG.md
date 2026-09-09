@@ -4,6 +4,34 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+This fork continues from upstream `v3.0.0` while preserving the existing
+module and command API.
+
+### Added
+
+- Workspace mode for automatically enabling inline diffs in normal file
+  buffers, with `HEAD` and index (`staged`) sources.
+- `:InlineDiffNext` and `:InlineDiffPrev` commands and matching Lua APIs for
+  hunk navigation.
+- `word_del_strikethrough` configuration for controlling deleted-word styling.
+- A modular left-hand source layer for Git refs, the index, and empty snapshots.
+- Rendering of untracked files as additions.
+
+### Changed
+
+- Ref switching now works with normalized source specifications while keeping
+  legacy string refs compatible.
+- Scroll adjustments use Neovim window APIs instead of injected command strings.
+- Documentation now describes the fork's one-sided, current-buffer rendering
+  model and its supported source types.
+
+### Tests
+
+- Added coverage for source normalization, Git-ref/index loading, missing paths,
+  and invalid refs.
+
 ## [3.0.0] - 2026-03-21
 
 ### Performance
